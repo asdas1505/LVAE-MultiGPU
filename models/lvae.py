@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from boilr.utils import linear_anneal
 from boilr.models import BaseGenerativeModel
 from boilr.nn import crop_img_tensor, pad_img_tensor, Interpolate, free_bits_kl
 from torch import nn
@@ -72,6 +73,7 @@ class LadderVAE(BaseGenerativeModel):
         self.beta = 1.
         self.eval_iters = 4000
         self.noise_std = 0.1
+        self.beta_anneal = 0
 
         # Default: no downsampling (except for initial bottom-up block)
         if self.downsample is None:
@@ -235,7 +237,7 @@ class LadderVAE(BaseGenerativeModel):
         kl_loss = free_bits_kl(kl, self.free_bits).sum()  # sum over layers
         kl = kl_sep.mean()
 
-        output = {
+        model_out = {
             'll': ll,
             'z': td_data['z'],
             'kl': kl,
@@ -250,7 +252,31 @@ class LadderVAE(BaseGenerativeModel):
             'likelihood_params': likelihood_info['params'],
             'out': out
         }
-        return output
+
+        recons_sep = -model_out['ll']
+        kl_sep = model_out['kl_sep']
+        kl = model_out['kl']
+        kl_loss = model_out['kl_loss']
+
+        # ELBO
+        elbo_sep = -(recons_sep + kl_sep)
+        elbo = elbo_sep.mean()
+
+        # Loss with beta
+        beta = 1.
+        if self.beta_anneal != 0:
+            beta = linear_anneal(self.model.module.global_step, 0.0, 1.0,
+                                 self.beta_anneal)
+        recons = recons_sep.mean()
+        loss = recons + kl_loss * beta
+
+        model_out['loss'] = loss
+        model_out['elbo'] = elbo
+        model_out['elbo_sep'] = elbo_sep
+        model_out['kl'] = kl
+        model_out['recons'] = recons
+
+        return model_out
 
     def forward_evaluate(self, x, eval_iters=300):
         self.eval()

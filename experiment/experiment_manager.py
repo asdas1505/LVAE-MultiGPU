@@ -335,22 +335,6 @@ class LVAEExperiment(VAEExperimentManager):
 
         x = x.to(f'cuda:{self.model.device_ids[0]}', non_blocking=True)
         model_out = self.model(x)
-        recons_sep = -model_out['ll']
-        kl_sep = model_out['kl_sep']
-        kl = model_out['kl']
-        kl_loss = model_out['kl_loss']
-
-        # ELBO
-        elbo_sep = -(recons_sep + kl_sep)
-        elbo = elbo_sep.mean()
-
-        # Loss with beta
-        beta = 1.
-        if self.args.beta_anneal != 0:
-            beta = linear_anneal(self.model.global_step, 0.0, 1.0,
-                                 self.args.beta_anneal)
-        recons = recons_sep.mean()
-        loss = recons + kl_loss * beta
 
         # L2
         l2 = 0.0
@@ -359,12 +343,12 @@ class LVAEExperiment(VAEExperimentManager):
         l2 = l2.sqrt()
 
         output = {
-            'loss': loss,
-            'elbo': elbo,
-            'elbo_sep': elbo_sep,
-            'kl': kl,
+            'loss': model_out['loss'],
+            'elbo': model_out['elbo'],
+            'elbo_sep': model_out['elbo_sep'],
+            'kl': model_out['kl'],
             'l2': l2,
-            'recons': recons,
+            'recons': model_out['recons'],
             'out_mean': model_out['out_mean'],
             'out_mode': model_out['out_mode'],
             'out_sample': model_out['out_sample'],

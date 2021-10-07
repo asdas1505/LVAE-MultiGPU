@@ -585,7 +585,7 @@ class VAEExperimentManager(BaseExperimentManager):
             filename (str): file name.
             nrows (int, optional): number of rows (and columns) of images.
         """
-        samples = self.model.sample_prior(nrows**2)
+        samples = self.model.module.sample_prior(nrows**2)
         save_image_grid(samples, filename, nrows=nrows)
 
     def generate_and_save_reconstructions(self,
